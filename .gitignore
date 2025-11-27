@@ -1,0 +1,41 @@
+
+.git.backup.*
+
+# Java/Gradle
+.gradle/
+build/
+bin/
+out/
+*.class
+*.jar
+*.war
+*.ear
+.classpath
+.project
+.settings/
+
+# IDE
+.idea/
+*.iml
+*.iws
+.vscode/
+
+# Environment variables and sensitive config
+.env
+.env.local
+notification-config.properties
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js (for any build tools)
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+package-lock.json

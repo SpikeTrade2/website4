@@ -1,0 +1,62 @@
+{
+  "price_roc" : {
+    "totalSignals" : 66,
+    "winningTrades" : 29,
+    "actualWinRate" : 0.4393939393939394,
+    "calibratedWeight" : 0.4393939393939394
+  },
+  "vwap" : {
+    "totalSignals" : 4,
+    "winningTrades" : 1,
+    "actualWinRate" : 0.25,
+    "calibratedWeight" : 0.25
+  },
+  "volume_spike" : {
+    "totalSignals" : 355,
+    "winningTrades" : 174,
+    "actualWinRate" : 0.49014084507042255,
+    "calibratedWeight" : 0.49014084507042255
+  },
+  "rsi_oversold" : {
+    "totalSignals" : 13,
+    "winningTrades" : 11,
+    "actualWinRate" : 0.8461538461538461,
+    "calibratedWeight" : 0.8461538461538461
+  },
+  "rvol_high" : {
+    "totalSignals" : 545,
+    "winningTrades" : 240,
+    "actualWinRate" : 0.44036697247706424,
+    "calibratedWeight" : 0.44036697247706424
+  },
+  "obv_roc" : {
+    "totalSignals" : 124,
+    "winningTrades" : 63,
+    "actualWinRate" : 0.5080645161290323,
+    "calibratedWeight" : 0.5080645161290323
+  },
+  "mfi" : {
+    "totalSignals" : 3,
+    "winningTrades" : 2,
+    "actualWinRate" : 0.6666666666666666,
+    "calibratedWeight" : 0.6666666666666666
+  },
+  "spike_quality" : {
+    "totalSignals" : 757,
+    "winningTrades" : 361,
+    "actualWinRate" : 0.47688243064729197,
+    "calibratedWeight" : 0.47688243064729197
+  },
+  "ema_downtrend" : {
+    "totalSignals" : 564,
+    "winningTrades" : 258,
+    "actualWinRate" : 0.4574468085106383,
+    "calibratedWeight" : 0.4574468085106383
+  },
+  "stoch_oversold" : {
+    "totalSignals" : 518,
+    "winningTrades" : 243,
+    "actualWinRate" : 0.4691119691119691,
+    "calibratedWeight" : 0.4691119691119691
+  }
+}
