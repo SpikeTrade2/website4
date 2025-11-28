@@ -5,13 +5,9 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+import json
 import os
 import pytz
-from functools import lru_cache
-
-# ==========================================
-# 1. CONFIGURATION & STYLING
-# ==========================================
 
 st.set_page_config(
     page_title="Spiketrade",
@@ -117,6 +113,54 @@ st.markdown("""
     .probability-medium { color: #ffc107; font-size: 2.5rem; font-weight: bold; text-shadow: 0 0 10px rgba(255, 193, 7, 0.5); }
     .probability-low { color: #ff4757; font-size: 2.5rem; font-weight: bold; text-shadow: 0 0 10px rgba(255, 71, 87, 0.5); }
     
+    .trade-card {
+        background: linear-gradient(145deg, #1a1a2e 0%, #252538 100%);
+        border: 1px solid #333;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 15px 0;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .trade-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+    
+    .trade-card-profit {
+        border-left: 4px solid #00ff88;
+    }
+    
+    .trade-card-loss {
+        border-left: 4px solid #ff4757;
+    }
+    
+    .trade-card-open {
+        border-left: 4px solid #ffc107;
+    }
+    
+    .trade-profit { color: #00ff88; font-weight: bold; font-size: 1.2rem; }
+    .trade-loss { color: #ff4757; font-weight: bold; font-size: 1.2rem; }
+    
+    .indicator-badge {
+        display: inline-block;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: bold;
+        margin: 3px;
+    }
+    
+    .badge-on {
+        background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%);
+        color: #1a1a1a;
+    }
+    
+    .badge-off {
+        background: #333;
+        color: #666;
+    }
+    
     .filter-pass {
         background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
         color: white;
@@ -137,42 +181,119 @@ st.markdown("""
         margin: 5px;
     }
     
-    .indicator-badge {
-        display: inline-block;
-        padding: 5px 12px;
-        border-radius: 20px;
-        font-size: 0.85rem;
+    .market-open {
+        background: linear-gradient(135deg, #00ff88 0%, #28a745 100%);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 10px;
         font-weight: bold;
-        margin: 3px;
+        text-align: center;
     }
     
-    .badge-on { background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%); color: #1a1a1a; }
-    .badge-off { background: #333; color: #666; }
+    .market-prepost {
+        background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+        color: #1a1a1a;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-weight: bold;
+        text-align: center;
+    }
     
-    .market-open { background: linear-gradient(135deg, #00ff88 0%, #28a745 100%); color: white; padding: 10px 20px; border-radius: 10px; font-weight: bold; text-align: center; }
-    .market-prepost { background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: #1a1a1a; padding: 10px 20px; border-radius: 10px; font-weight: bold; text-align: center; }
-    .market-closed { background: linear-gradient(135deg, #dc3545 0%, #c0392b 100%); color: white; padding: 10px 20px; border-radius: 10px; font-weight: bold; text-align: center; }
+    .market-closed {
+        background: linear-gradient(135deg, #dc3545 0%, #c0392b 100%);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-weight: bold;
+        text-align: center;
+    }
     
-    .sidebar-card { background: linear-gradient(145deg, #1e1e2e 0%, #252538 100%); border: 1px solid #333; border-radius: 10px; padding: 15px; margin: 10px 0; }
-    .sidebar-title { font-size: 1rem; font-weight: bold; color: #00d4ff; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 8px; }
-    .summary-stat { background: linear-gradient(145deg, #252538 0%, #1e1e2e 100%); border: 1px solid #333; border-radius: 10px; padding: 15px; text-align: center; }
-    .stat-value { font-size: 1.8rem; font-weight: bold; color: #00d4ff; }
-    .stat-label { font-size: 0.9rem; color: #888; margin-top: 5px; }
-    .legend-item { display: flex; align-items: center; gap: 10px; margin: 8px 0; color: #ccc; }
-    .legend-color { width: 20px; height: 20px; border-radius: 4px; }
-    .prob-bar { height: 6px; background: linear-gradient(90deg, #00d4ff 0%, #00ff88 100%); border-radius: 3px; margin-top: 4px; }
-    .prob-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; }
+    .sidebar-card {
+        background: linear-gradient(145deg, #1e1e2e 0%, #252538 100%);
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 10px 0;
+    }
+    
+    .sidebar-title {
+        font-size: 1rem;
+        font-weight: bold;
+        color: #00d4ff;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #333;
+        padding-bottom: 8px;
+    }
+    
+    .summary-stat {
+        background: linear-gradient(145deg, #252538 0%, #1e1e2e 100%);
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #00d4ff;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        color: #888;
+        margin-top: 5px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 8px 0;
+        color: #ccc;
+    }
+    
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+    }
+    
+    .prob-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .prob-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 6px;
+    }
+    
+    .prob-bar {
+        height: 6px;
+        background: linear-gradient(90deg, #00d4ff 0%, #00ff88 100%);
+        border-radius: 3px;
+        margin-top: 4px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# 2. SETTINGS & CONSTANTS
-# ==========================================
 
 CALIBRATED_WEIGHTS = {
-    "price_roc": 0.44, "vwap": 0.25, "volume_spike": 0.49,
-    "rsi_oversold": 0.85, "rvol_high": 0.44, "obv_roc": 0.51,
-    "mfi": 0.67, "spike_quality": 0.48, "ema_downtrend": 0.46,
+    "price_roc": 0.44,
+    "vwap": 0.25,
+    "volume_spike": 0.49,
+    "rsi_oversold": 0.85,
+    "rvol_high": 0.44,
+    "obv_roc": 0.51,
+    "mfi": 0.67,
+    "spike_quality": 0.48,
+    "ema_downtrend": 0.46,
     "stoch_oversold": 0.47
 }
 
@@ -207,9 +328,6 @@ TRADING_SETTINGS = {
     "rvolThreshold": 1.2
 }
 
-# ==========================================
-# 3. UTILITY FUNCTIONS
-# ==========================================
 
 def get_market_status():
     """Get current market status based on Eastern Time"""
@@ -238,22 +356,16 @@ def get_market_status():
     else:
         return "closed", "Market Closed"
 
-# ==========================================
-# 4. STRATEGY CLASS (OPTIMIZED)
-# ==========================================
 
 class PennyBreakoutStrategy:
     def __init__(self):
         self.settings = TRADING_SETTINGS
         self.weights = CALIBRATED_WEIGHTS
     
-    @lru_cache(maxsize=32)
     def calculate_rsi(self, prices, period=14):
-        # Converted to static-like method via caching, but passed as instance method
-        # Note: In production, better to move outside class or use staticmethod
         delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).fillna(0).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).fillna(0).rolling(window=period).mean().replace(0, 1e-10)
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
         rs = gain / loss
         rsi = 100 - (100 / (1 + rs))
         return rsi
@@ -262,42 +374,39 @@ class PennyBreakoutStrategy:
         typical_price = (df['High'] + df['Low'] + df['Close']) / 3
         money_flow = typical_price * df['Volume']
         
-        # Vectorized implementation
-        shifted_tp = typical_price.shift(1)
-        positive_flow = money_flow.where(typical_price > shifted_tp, 0)
-        negative_flow = money_flow.where(typical_price < shifted_tp, 0)
+        positive_flow = pd.Series(0.0, index=df.index)
+        negative_flow = pd.Series(0.0, index=df.index)
+        
+        for i in range(1, len(df)):
+            if typical_price.iloc[i] > typical_price.iloc[i-1]:
+                positive_flow.iloc[i] = money_flow.iloc[i]
+            else:
+                negative_flow.iloc[i] = money_flow.iloc[i]
         
         positive_mf = positive_flow.rolling(window=period).sum()
-        negative_mf = negative_flow.rolling(window=period).sum().replace(0, 1e-10)
+        negative_mf = negative_flow.rolling(window=period).sum()
         
-        mfi = 100 - (100 / (1 + positive_mf / negative_mf))
+        mfi = 100 - (100 / (1 + positive_mf / negative_mf.replace(0, 1)))
         return mfi
     
     def calculate_obv(self, df):
-        # Vectorized implementation
-        obv_change = pd.Series(0.0, index=df.index)
-        shifted_close = df['Close'].shift(1)
-        
-        # Determine direction
-        direction = np.select(
-            [df['Close'] > shifted_close, df['Close'] < shifted_close],
-            [1, -1],
-            default=0
-        )
-        
-        # Standard OBV usually ignores flat volume, but for penny stocks
-        # we often treat flat consolidation as continuation or neutral.
-        # Strict OBV:
-        obv = (direction * df['Volume']).cumsum()
+        obv = pd.Series(0.0, index=df.index)
+        for i in range(1, len(df)):
+            if df['Close'].iloc[i] > df['Close'].iloc[i-1]:
+                obv.iloc[i] = obv.iloc[i-1] + df['Volume'].iloc[i]
+            elif df['Close'].iloc[i] < df['Close'].iloc[i-1]:
+                obv.iloc[i] = obv.iloc[i-1] - df['Volume'].iloc[i]
+            else:
+                obv.iloc[i] = obv.iloc[i-1]
         return obv
     
     def calculate_roc(self, series, period):
-        return series.pct_change(period).fillna(0) * 100
+        return ((series - series.shift(period)) / series.shift(period).replace(0, 1)) * 100
     
     def calculate_z_score(self, series, lookback=20):
         mean = series.rolling(window=lookback).mean()
-        std = series.rolling(window=lookback).std().replace(0, 1e-10)
-        return (series - mean) / std
+        std = series.rolling(window=lookback).std()
+        return (series - mean) / std.replace(0, 1)
     
     def calculate_ema(self, prices, period):
         return prices.ewm(span=period, adjust=False).mean()
@@ -315,85 +424,67 @@ class PennyBreakoutStrategy:
         std = prices.rolling(window=period).std()
         upper = middle + (std * std_dev)
         lower = middle - (std * std_dev)
-        # Avoid division by zero
-        denom = (upper - lower).replace(0, 1e-10)
-        percent_b = (prices - lower) / denom
+        percent_b = (prices - lower) / (upper - lower)
         return upper, middle, lower, percent_b
     
     def calculate_stochastic(self, df, k_period=14, d_period=3):
         low_min = df['Low'].rolling(window=k_period).min()
         high_max = df['High'].rolling(window=k_period).max()
-        denom = (high_max - low_min).replace(0, 1e-10)
-        stoch_k = 100 * (df['Close'] - low_min) / denom
+        stoch_k = 100 * (df['Close'] - low_min) / (high_max - low_min)
         stoch_d = stoch_k.rolling(window=d_period).mean()
         return stoch_k, stoch_d
     
     def calculate_vwap(self, df):
-        # Optimized: Reset VWAP daily
         typical_price = (df['High'] + df['Low'] + df['Close']) / 3
-        vp = typical_price * df['Volume']
-        
-        # Group by date to reset calculation every day
-        # This is CRITICAL for accurate intraday VWAP
-        dates = df.index.date
-        vwap_num = vp.groupby(dates).cumsum()
-        vwap_denom = df['Volume'].groupby(dates).cumsum().replace(0, 1e-10)
-        
-        return vwap_num / vwap_denom
+        vwap = (typical_price * df['Volume']).cumsum() / df['Volume'].cumsum()
+        return vwap
     
     def calculate_rvol(self, df, period=20):
-        avg_volume = df['Volume'].rolling(window=period).mean().replace(0, 1e-10)
-        rvol = df['Volume'] / avg_volume
+        avg_volume = df['Volume'].rolling(window=period).mean()
+        rvol = df['Volume'] / avg_volume.replace(0, 1)
         return rvol
     
     def calculate_signals(self, df):
         df = df.copy()
         
-        # Technical Indicators
-        # Passing self.calculate_rsi to bypass scope issue with lru_cache if needed
-        # but here we call the method normally.
         df['RSI'] = self.calculate_rsi(df['Close'], self.settings['rsiLengthMinutes'])
         df['MFI'] = self.calculate_mfi(df, self.settings['mfiPeriodMinutes'])
         df['OBV'] = self.calculate_obv(df)
         
-        # ROCs
         df['Price_ROC'] = self.calculate_roc(df['Close'], self.settings['priceRocPeriodMinutes'])
         df['Volume_ROC'] = self.calculate_roc(df['Volume'], self.settings['priceRocPeriodMinutes'])
         df['RSI_ROC'] = self.calculate_roc(df['RSI'], self.settings['rsiLengthMinutes'])
         df['OBV_ROC'] = self.calculate_roc(df['OBV'], self.settings['obvRocPeriodMinutes'])
         df['MFI_ROC'] = self.calculate_roc(df['MFI'], self.settings['mfiPeriodMinutes'])
         
-        # Z-Scores
         df['Price_ROC_Z'] = self.calculate_z_score(df['Price_ROC'])
         df['Volume_ROC_Z'] = self.calculate_z_score(df['Volume_ROC'])
         df['RSI_ROC_Z'] = self.calculate_z_score(df['RSI_ROC'])
         df['OBV_ROC_Z'] = self.calculate_z_score(df['OBV_ROC'])
         df['MFI_ROC_Z'] = self.calculate_z_score(df['MFI_ROC'])
         
-        # EMAs & MACD
         df['EMA_9'] = self.calculate_ema(df['Close'], 9)
         df['EMA_20'] = self.calculate_ema(df['Close'], 20)
         df['EMA_50'] = self.calculate_ema(df['Close'], 50)
-        df['MACD'], df['MACD_Signal'], df['MACD_Hist'] = self.calculate_macd(df['Close'])
-        df['MACD_Hist_ROC'] = df['MACD_Hist'].pct_change() # Using pct_change is cleaner
         
-        # Bollinger Bands
+        df['MACD'], df['MACD_Signal'], df['MACD_Hist'] = self.calculate_macd(df['Close'])
+        df['MACD_Hist_ROC'] = df['MACD_Hist'].diff() / df['Close']
+        
         df['BB_Upper'], df['BB_Middle'], df['BB_Lower'], df['Percent_B'] = self.calculate_bollinger_bands(df['Close'], self.settings['bbLengthMinutes'])
         df['Percent_B_ROC'] = self.calculate_roc(df['Percent_B'], self.settings['priceRocPeriodMinutes'])
         df['Percent_B_ROC_Z'] = self.calculate_z_score(df['Percent_B_ROC'])
         
-        # Stochastic & VWAP
         df['Stoch_K'], df['Stoch_D'] = self.calculate_stochastic(df)
+        
         df['VWAP'] = self.calculate_vwap(df)
         df['VWAP_ROC'] = self.calculate_roc(df['VWAP'], self.settings['vwapPeriodMinutes'])
         df['VWAP_ROC_Z'] = self.calculate_z_score(df['VWAP_ROC'])
         
-        # RVOL & Volume Spikes
         df['RVOL'] = self.calculate_rvol(df)
+        
         df['Volume_MA'] = df['Volume'].rolling(window=20).mean()
         df['Volume_Spike'] = df['Volume'] > (df['Volume_MA'] * 1.5)
         
-        # Spike Flags (Boolean)
         df['Price_Spike'] = df['Price_ROC_Z'] > self.settings['spikePriceRocZThreshold']
         df['RSI_Spike'] = df['RSI_ROC_Z'] > self.settings['spikeRsiRocZThreshold']
         df['OBV_Spike'] = df['OBV_ROC_Z'] > self.settings['spikeObvRocZThreshold']
@@ -402,232 +493,222 @@ class PennyBreakoutStrategy:
         df['Percent_B_Spike'] = df['Percent_B_ROC_Z'] > self.settings['spikePercentBRocZThreshold']
         df['VWAP_Spike'] = df['VWAP_ROC_Z'] > self.settings['spikeVwapRocZThreshold']
         
-        df = self.generate_signals_optimized(df)
+        df = self.generate_signals_with_one_trade(df)
         
         return df
     
-    def generate_signals_optimized(self, df):
+    def generate_signals_with_one_trade(self, df):
         df['Buy_Signal'] = False
         df['Sell_Signal'] = False
         df['Signal_Probability'] = 0.0
         
-        # 1. Vectorized Pre-calculation of conditions
-        # -------------------------------------------
-        
-        # Condition A: Spikes
-        has_spike = (df['Price_Spike'] | df['RSI_Spike'] | 
-                     df['OBV_Spike'] | df['MFI_Spike'] | df['Vol_ROC_Spike'] |
-                     df['Percent_B_Spike'] | df['VWAP_Spike'])
-        
-        # Condition B: Bullish Momentum
-        bullish_momentum = (df['Price_ROC'] > 0) & (df['Volume_ROC'] > 0) & (df['OBV_ROC'] > 0)
-        
-        # Condition C: MACD Gate
-        macd_threshold = self.settings['macdHistogramRocThreshold'] / 100.0 # Normalize if needed
-        # Note: Original code used diff() / price, here checking raw threshold or pct_change
-        # Adjusting logic to match typical MACD turn up:
-        macd_valid = (df['MACD_Hist'] <= 0) & (df['MACD_Hist_ROC'] > 0) 
-        
-        # Condition D: Oversold
-        stoch_oversold = df['Stoch_K'] < self.settings['stochasticOversoldThreshold']
-        
-        # Condition E: RVOL
-        rvol_valid = df['RVOL'] > self.settings['rvolThreshold']
-        
-        # Condition F: Trend (Price not below all EMAs)
-        price_below_all_emas = (df['Close'] < df['EMA_9']) & \
-                               (df['Close'] < df['EMA_20']) & \
-                               (df['Close'] < df['EMA_50'])
-        
-        # Master Potential Buy Mask
-        potential_buys = (has_spike & bullish_momentum & macd_valid & 
-                          stoch_oversold & rvol_valid & (~price_below_all_emas))
-        
-        # 2. Probability Calculation (Semi-Vectorized)
-        # --------------------------------------------
-        # To strictly avoid O(N) scoring, we would need to vectorize the scoring.
-        # For now, we will compute scores row-by-row ONLY for potential buys + last row (for UI)
-        # to save processing time.
-        
-        # Calculate prob for the very last row (always needed for UI)
-        last_idx = df.index[-1]
-        prob_last, _ = self.calculate_buy_probability(df, -1)
-        df.at[last_idx, 'Signal_Probability'] = prob_last
-
-        # Identify indices where conditions are met
-        candidate_indices = np.where(potential_buys)[0]
-
-        # Calculate probabilities only for candidate rows to save time
-        # We use integer indexing for speed
-        prob_col_idx = df.columns.get_loc('Signal_Probability')
-        
-        for idx in candidate_indices:
-            if idx < 50: continue # Skip warmup period
-            
-            # Calculate score
-            prob, _ = self.calculate_buy_probability(df, idx)
-            df.iat[idx, prob_col_idx] = prob
-            
-        # 3. Trade Simulation (State Machine)
-        # -----------------------------------
-        # We must iterate linearly to ensure we don't buy while already in a trade
-        
         in_trade = False
         entry_price = 0.0
-        
-        # Get integer locations for faster access
-        buy_sig_col = df.columns.get_loc('Buy_Signal')
-        sell_sig_col = df.columns.get_loc('Sell_Signal')
-        close_col = df.columns.get_loc('Close')
-        
-        # Pre-convert columns to numpy for speed in the loop
-        close_arr = df['Close'].values
-        ema9_arr = df['EMA_9'].values
-        ema20_arr = df['EMA_20'].values
-        ema50_arr = df['EMA_50'].values
-        macd_arr = df['MACD'].values
-        signal_arr = df['MACD_Signal'].values
-        rsi_arr = df['RSI'].values
-        price_roc_arr = df['Price_ROC'].values
-        vol_spike_arr = df['Volume_Spike'].values
-        probs_arr = df['Signal_Probability'].values
-        
-        # Create a boolean array for the potential buys we identified earlier
-        potential_buys_arr = potential_buys.values
+        entry_idx = None
         
         for i in range(50, len(df)):
-            current_price = close_arr[i]
+            row = df.iloc[i]
+            prev_row = df.iloc[i-1]
             
             if not in_trade:
-                # Check if this row was identified as a potential buy AND meets probability threshold
-                if potential_buys_arr[i] and probs_arr[i] >= self.settings['comboSignalThreshold']:
-                    df.iat[i, buy_sig_col] = True
+                probability, reasons = self.calculate_buy_probability(df, i)
+                df.iloc[i, df.columns.get_loc('Signal_Probability')] = probability
+                
+                has_spike = (row['Price_Spike'] or row['RSI_Spike'] or 
+                           row['OBV_Spike'] or row['MFI_Spike'] or row['Vol_ROC_Spike'] or
+                           row['Percent_B_Spike'] or row['VWAP_Spike'])
+                
+                if not has_spike:
+                    continue
+                
+                bullish_momentum = row['Price_ROC'] > 0 and row['Volume_ROC'] > 0 and row['OBV_ROC'] > 0
+                if not bullish_momentum:
+                    continue
+                
+                macd_hist_roc_threshold = self.settings['macdHistogramRocThreshold'] / 100.0
+                macd_histogram_roc_valid = row['MACD_Hist'] <= 0 and row['MACD_Hist_ROC'] >= macd_hist_roc_threshold
+                if not macd_histogram_roc_valid:
+                    continue
+                
+                stoch_oversold = row['Stoch_K'] < self.settings['stochasticOversoldThreshold']
+                if not stoch_oversold:
+                    continue
+                
+                rvol_valid = row['RVOL'] > self.settings['rvolThreshold']
+                if not rvol_valid:
+                    continue
+                
+                price_below_all_emas = (row['Close'] < row['EMA_9'] and 
+                                        row['Close'] < row['EMA_20'] and 
+                                        row['Close'] < row['EMA_50'])
+                if price_below_all_emas:
+                    continue
+                
+                if probability >= self.settings['comboSignalThreshold']:
+                    df.iloc[i, df.columns.get_loc('Buy_Signal')] = True
                     in_trade = True
-                    entry_price = current_price
+                    entry_price = row['Close']
+                    entry_idx = i
             
             else:
-                # We are in a trade, check exit conditions
+                current_price = row['Close']
                 pnl_pct = (current_price - entry_price) / entry_price
                 
                 hit_stop_loss = pnl_pct <= -self.settings['stopLossPct']
                 hit_target = pnl_pct >= self.settings['targetGainPercent'] / 100
                 
-                # Technical exits
-                macd_bearish = (macd_arr[i] < signal_arr[i]) and (macd_arr[i-1] >= signal_arr[i-1])
-                rsi_overbought = rsi_arr[i] > 70
+                macd_bearish = row['MACD'] < row['MACD_Signal'] and prev_row['MACD'] >= prev_row['MACD_Signal']
                 
-                below_all_emas = (current_price < ema9_arr[i]) and \
-                                 (current_price < ema20_arr[i]) and \
-                                 (current_price < ema50_arr[i])
+                rsi_overbought = row['RSI'] > 70
                 
-                bearish_momentum = (price_roc_arr[i] < -1) and vol_spike_arr[i]
+                below_all_emas = (row['Close'] < row['EMA_9'] and 
+                                 row['Close'] < row['EMA_20'] and 
+                                 row['Close'] < row['EMA_50'])
+                
+                bearish_momentum = row['Price_ROC'] < -1 and row['Volume_Spike']
                 
                 if hit_stop_loss or hit_target or macd_bearish or (rsi_overbought and bearish_momentum) or below_all_emas:
-                    df.iat[i, sell_sig_col] = True
+                    df.iloc[i, df.columns.get_loc('Sell_Signal')] = True
                     in_trade = False
                     entry_price = 0.0
+                    entry_idx = None
         
         return df
     
     def calculate_buy_probability(self, df, idx):
-        # Handle negative indexing or too small index
-        if idx < 0: idx = len(df) + idx
-        if idx < 50: return 0.0, {}
+        if idx < 50:
+            return 0.0, {}
         
-        # We use .iloc specifically for this row
         row = df.iloc[idx]
-        
         scores = {}
         total_weight = 0.0
         weighted_score = 0.0
         
-        # Helper to add score
-        def add_score(name, condition, weight_key, score_val=1.0, fmt_val=""):
-            nonlocal total_weight, weighted_score
-            w = self.weights.get(weight_key, 0.5)
-            if condition:
-                weighted_score += score_val * w
-                total_weight += w
-                scores[name] = fmt_val
-            return w # return weight if needed for partials
-            
-        # 1. Price ROC
         if row['Price_ROC'] > 0:
-            s = min(1.0, row['Price_ROC'] / self.settings['regularPriceRocThreshold'])
-            w = self.weights['price_roc']
-            weighted_score += s * w
-            total_weight += w
-            scores['Price ROC'] = f"+{s*100:.0f}%"
-            
-        # 2. Volume Spike
-        add_score('Volume Spike', row['Volume_Spike'], 'volume_spike', fmt_val="Active")
+            score = min(1.0, row['Price_ROC'] / self.settings['regularPriceRocThreshold'])
+            weight = self.weights['price_roc']
+            weighted_score += score * weight
+            total_weight += weight
+            scores['Price ROC'] = f"+{score*100:.0f}%"
         
-        # 3. RSI
+        if row['Volume_Spike']:
+            weight = self.weights['volume_spike']
+            weighted_score += weight
+            total_weight += weight
+            scores['Volume Spike'] = "Active"
+        
         if row['RSI'] < 30:
-            add_score('RSI Oversold', True, 'rsi_oversold', fmt_val=f"{row['RSI']:.1f}")
+            weight = self.weights['rsi_oversold']
+            weighted_score += weight
+            total_weight += weight
+            scores['RSI Oversold'] = f"{row['RSI']:.1f}"
         elif row['RSI'] < 40:
-            w = self.weights['rsi_oversold'] * 0.5
-            weighted_score += w
-            total_weight += w
+            weight = self.weights['rsi_oversold'] * 0.5
+            weighted_score += weight
+            total_weight += weight
             scores['RSI Low'] = f"{row['RSI']:.1f}"
-            
-        # 4. RVOL
-        if row['RVOL'] > self.settings['rvolThreshold']:
-            s = min(1.0, (row['RVOL'] - 1) / 1.0)
-            w = self.weights['rvol_high']
-            weighted_score += s * w
-            total_weight += w
-            scores['RVOL High'] = f"{row['RVOL']:.2f}x"
-            
-        # 5. OBV ROC
-        if row['OBV_ROC'] > self.settings['regularObvRocThreshold']:
-            s = min(1.0, row['OBV_ROC'] / (self.settings['regularObvRocThreshold'] * 2))
-            w = self.weights['obv_roc']
-            weighted_score += s * w
-            total_weight += w
-            scores['OBV ROC'] = f"+{row['OBV_ROC']:.1f}%"
-            
-        # 6. MFI
-        if row['MFI'] < 30:
-            add_score('MFI Oversold', True, 'mfi', fmt_val=f"{row['MFI']:.1f}")
         
-        # 7. Stoch
+        if row['RVOL'] > self.settings['rvolThreshold']:
+            score = min(1.0, (row['RVOL'] - 1) / 1.0)
+            weight = self.weights['rvol_high']
+            weighted_score += score * weight
+            total_weight += weight
+            scores['RVOL High'] = f"{row['RVOL']:.2f}x"
+        
+        if row['OBV_ROC'] > self.settings['regularObvRocThreshold']:
+            score = min(1.0, row['OBV_ROC'] / (self.settings['regularObvRocThreshold'] * 2))
+            weight = self.weights['obv_roc']
+            weighted_score += score * weight
+            total_weight += weight
+            scores['OBV ROC'] = f"+{row['OBV_ROC']:.1f}%"
+        elif row['OBV_ROC'] > 0:
+            score = row['OBV_ROC'] / self.settings['regularObvRocThreshold']
+            weight = self.weights['obv_roc'] * 0.5
+            weighted_score += score * weight
+            total_weight += weight
+            scores['OBV ROC'] = f"+{row['OBV_ROC']:.1f}%"
+        
+        if row['MFI'] < 30:
+            weight = self.weights['mfi']
+            weighted_score += weight
+            total_weight += weight
+            scores['MFI Oversold'] = f"{row['MFI']:.1f}"
+        elif row['MFI'] < 40:
+            weight = self.weights['mfi'] * 0.6
+            weighted_score += weight
+            total_weight += weight
+            scores['MFI Low'] = f"{row['MFI']:.1f}"
+        
+        if row['MFI_ROC'] > self.settings['regularMfiRocThreshold']:
+            score = min(1.0, row['MFI_ROC'] / (self.settings['regularMfiRocThreshold'] * 2))
+            weight = self.weights['mfi'] * 0.5
+            weighted_score += score * weight
+            total_weight += weight
+            scores['MFI ROC'] = f"+{row['MFI_ROC']:.1f}%"
+        
         if row['Stoch_K'] < self.settings['stochasticOversoldThreshold']:
-            s = 1.0 - (row['Stoch_K'] / self.settings['stochasticOversoldThreshold'])
-            w = self.weights['stoch_oversold']
-            weighted_score += s * w
-            total_weight += w
+            score = 1.0 - (row['Stoch_K'] / self.settings['stochasticOversoldThreshold'])
+            weight = self.weights['stoch_oversold']
+            weighted_score += score * weight
+            total_weight += weight
             scores['Stoch Oversold'] = f"{row['Stoch_K']:.1f}"
-            
-        # 8. EMAs
+        
         if row['Close'] > row['EMA_9'] and row['Close'] > row['EMA_20']:
-            add_score('Above EMAs', True, 'ema_downtrend', fmt_val="Yes")
-            
-        # 9. Spike Quality (Multi-spike)
+            weight = self.weights['ema_downtrend']
+            weighted_score += weight
+            total_weight += weight
+            scores['Above EMAs'] = "Yes"
+        elif row['Close'] > row['EMA_9']:
+            weight = self.weights['ema_downtrend'] * 0.5
+            weighted_score += weight
+            total_weight += weight
+            scores['Above EMA9'] = "Yes"
+        
         spike_count = sum([row['Price_Spike'], row['RSI_Spike'], row['OBV_Spike'], 
                           row['MFI_Spike'], row['Vol_ROC_Spike'], row['Percent_B_Spike'],
                           row['VWAP_Spike']])
         if spike_count >= 2:
-            s = min(1.0, spike_count / 4.0)
-            w = self.weights['spike_quality']
-            weighted_score += s * w
-            total_weight += w
+            score = min(1.0, spike_count / 4.0)
+            weight = self.weights['spike_quality']
+            weighted_score += score * weight
+            total_weight += weight
             scores['Multi-Spike'] = f"{spike_count} spikes"
-            
-        # 10. VWAP
+        
         if row['Close'] > row['VWAP']:
-            add_score('Above VWAP', True, 'vwap', fmt_val="Yes")
-
-        # Final calc
+            vwap_distance = (row['Close'] - row['VWAP']) / row['VWAP'] * 100
+            score = min(1.0, vwap_distance / 1.0)
+            weight = self.weights['vwap']
+            weighted_score += score * weight
+            total_weight += weight
+            scores['Above VWAP'] = f"+{vwap_distance:.2f}%"
+        
+        if row['Percent_B_ROC'] > self.settings['regularPercentBRocThreshold']:
+            score = min(1.0, row['Percent_B_ROC'] / (self.settings['regularPercentBRocThreshold'] * 2))
+            weight = self.weights['spike_quality'] * 0.3
+            weighted_score += score * weight
+            total_weight += weight
+            scores['%B ROC'] = f"+{row['Percent_B_ROC']:.1f}%"
+        
+        if row['VWAP_ROC'] > self.settings['regularVwapRocThreshold']:
+            score = min(1.0, row['VWAP_ROC'] / (self.settings['regularVwapRocThreshold'] * 2))
+            weight = self.weights['vwap'] * 0.5
+            weighted_score += score * weight
+            total_weight += weight
+            scores['VWAP ROC'] = f"+{row['VWAP_ROC']:.2f}%"
+        
         if total_weight > 0:
             probability = weighted_score / total_weight
         else:
             probability = 0.0
-            
-        return max(0.0, min(1.0, probability)), scores
-
+        
+        probability = max(0.0, min(1.0, probability))
+        
+        return probability, scores
+    
     def get_current_signal(self, df):
-        if len(df) < 2: return "HOLD", "Insufficient data", 0.0
+        if len(df) < 2:
+            return "HOLD", "Insufficient data", 0.0
+        
         latest = df.iloc[-1]
         
         if latest['Buy_Signal']:
@@ -635,31 +716,48 @@ class PennyBreakoutStrategy:
         elif latest['Sell_Signal']:
             return "SELL", "Sell signal triggered", 0.0
         
-        return "HOLD", "Monitoring", latest['Signal_Probability']
+        probability, _ = self.calculate_buy_probability(df, len(df)-1)
+        return "HOLD", "Monitoring for signals", probability
     
     def get_filter_status(self, df):
-        if len(df) < 51: return {}
-        row = df.iloc[-1]
+        """Get the status of each filter for the latest candle"""
+        if len(df) < 51:
+            return {}
         
-        # Re-eval for UI
-        has_spike = (row['Price_Spike'] or row['RSI_Spike'] or row['OBV_Spike'] or 
-                     row['MFI_Spike'] or row['Vol_ROC_Spike'] or row['Percent_B_Spike'] or row['VWAP_Spike'])
+        row = df.iloc[-1]
+        prev_row = df.iloc[-2] if len(df) > 1 else row
+        
+        has_spike = (row['Price_Spike'] or row['RSI_Spike'] or 
+                   row['OBV_Spike'] or row['MFI_Spike'] or row['Vol_ROC_Spike'] or
+                   row['Percent_B_Spike'] or row['VWAP_Spike'])
         
         bullish_momentum = row['Price_ROC'] > 0 and row['Volume_ROC'] > 0 and row['OBV_ROC'] > 0
-        macd_threshold = self.settings['macdHistogramRocThreshold'] / 100.0
-        macd_valid = row['MACD_Hist'] <= 0 and row['MACD_Hist_ROC'] > 0 # Simplified check
+        
+        macd_hist_roc_threshold = self.settings['macdHistogramRocThreshold'] / 100.0
+        macd_valid = row['MACD_Hist'] <= 0 and row['MACD_Hist_ROC'] >= macd_hist_roc_threshold
+        
+        stoch_oversold = row['Stoch_K'] < self.settings['stochasticOversoldThreshold']
+        
+        rvol_valid = row['RVOL'] > self.settings['rvolThreshold']
+        
+        price_above_ema = not (row['Close'] < row['EMA_9'] and 
+                              row['Close'] < row['EMA_20'] and 
+                              row['Close'] < row['EMA_50'])
         
         return {
-            'has_spike': bool(has_spike),
-            'bullish_momentum': bool(bullish_momentum),
-            'macd_gate': bool(macd_valid),
-            'stochastic': bool(row['Stoch_K'] < self.settings['stochasticOversoldThreshold']),
-            'rvol': bool(row['RVOL'] > self.settings['rvolThreshold']),
-            'ema_trend': not (row['Close'] < row['EMA_9'] and row['Close'] < row['EMA_20'])
+            'has_spike': has_spike,
+            'bullish_momentum': bullish_momentum,
+            'macd_gate': macd_valid,
+            'stochastic': stoch_oversold,
+            'rvol': rvol_valid,
+            'ema_trend': price_above_ema
         }
-
+    
     def get_spike_status(self, df):
-        if len(df) < 51: return {}
+        """Get the status of each spike detector"""
+        if len(df) < 51:
+            return {}
+        
         row = df.iloc[-1]
         return {
             'Price': bool(row['Price_Spike']),
@@ -670,265 +768,650 @@ class PennyBreakoutStrategy:
             '%B': bool(row['Percent_B_Spike']),
             'VWAP': bool(row['VWAP_Spike'])
         }
-
+    
     def get_paired_trades(self, df):
         trades = []
-        buy_indices = df.index[df['Buy_Signal']]
-        sell_indices = df.index[df['Sell_Signal']]
+        buy_signals = df[df['Buy_Signal']]
+        sell_signals = df[df['Sell_Signal']]
         
-        for buy_idx in buy_indices:
-            # Find next sell signal after this buy
-            valid_sells = sell_indices[sell_indices > buy_idx]
-            
-            entry_price = df.loc[buy_idx]['Close']
-            prob = df.loc[buy_idx]['Signal_Probability']
-            
-            if not valid_sells.empty:
-                sell_idx = valid_sells[0]
-                exit_price = df.loc[sell_idx]['Close']
-                pnl = ((exit_price - entry_price) / entry_price) * 100
+        for buy_idx, buy_row in buy_signals.iterrows():
+            sell_after = sell_signals[sell_signals.index > buy_idx]
+            if not sell_after.empty:
+                sell_idx = sell_after.index[0]
+                sell_row = df.loc[sell_idx]
+                
+                entry_price = buy_row['Close']
+                exit_price = sell_row['Close']
+                pnl_pct = ((exit_price - entry_price) / entry_price) * 100
                 
                 trades.append({
-                    'entry_time': buy_idx, 'exit_time': sell_idx,
-                    'entry_price': entry_price, 'exit_price': exit_price,
-                    'pnl_pct': pnl, 'probability': prob, 'open': False
+                    'entry_time': buy_idx,
+                    'exit_time': sell_idx,
+                    'entry_price': entry_price,
+                    'exit_price': exit_price,
+                    'pnl_pct': pnl_pct,
+                    'probability': buy_row['Signal_Probability']
                 })
             else:
-                # Open trade
                 trades.append({
-                    'entry_time': buy_idx, 'exit_time': None,
-                    'entry_price': entry_price, 'exit_price': None,
-                    'pnl_pct': None, 'probability': prob, 'open': True
+                    'entry_time': buy_idx,
+                    'exit_time': None,
+                    'entry_price': buy_row['Close'],
+                    'exit_price': None,
+                    'pnl_pct': None,
+                    'probability': buy_row['Signal_Probability'],
+                    'open': True
                 })
+        
         return trades
 
-# ==========================================
-# 5. DATA FETCHING & PLOTTING
-# ==========================================
 
 def fetch_stock_data(ticker):
     try:
         stock = yf.Ticker(ticker)
-        # Fetch 5 days to ensure we have enough EMA/MACD warmup data
-        df = stock.history(period="5d", interval="1m", prepost=True)
-        
+        df = stock.history(period="1d", interval="1m", prepost=True)
         if df.empty:
-            return None, "No data available."
-            
-        # Filter to keep only today's data for the chart, but keep history for calc?
-        # Actually, for 1m interval, 5d is a lot. Let's do 2d.
-        
-        # Check if we have recent data
-        last_dt = df.index[-1].date()
-        today = datetime.now().date()
-        
-        # If the last data is not from today (and it's a weekday), warn?
-        # We'll just return what we have.
-        
+            df = stock.history(period="2d", interval="1m", prepost=True)
+            if not df.empty:
+                today = datetime.now().date()
+                df = df[df.index.date == today]
+        if df.empty:
+            return None, "No data available for this ticker today"
         return df, None
     except Exception as e:
         return None, str(e)
 
+
 def create_chart(df, ticker, trades):
-    # Slice to last 1 day for visualization to prevent lag
-    # Find start of 'today' or last available day
-    last_day = df.index[-1].normalize()
-    plot_df = df[df.index >= last_day]
-    
     fig = make_subplots(
-        rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.03,
+        rows=5, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.03,
         row_heights=[0.4, 0.1, 0.15, 0.15, 0.2],
-        subplot_titles=(f'{ticker}', 'Signal Prob', 'Volume', 'RSI/Stoch', 'MACD')
+        subplot_titles=(f'{ticker} - 1 Day / 1 Minute (Pre/Post Market)', 'Signal Probability', 'Volume & RVOL', 'RSI & Stochastic', 'MACD')
     )
     
-    # Price & EMAs
-    fig.add_trace(go.Candlestick(
-        x=plot_df.index, open=plot_df['Open'], high=plot_df['High'],
-        low=plot_df['Low'], close=plot_df['Close'], name='Price'
-    ), row=1, col=1)
+    fig.add_trace(
+        go.Candlestick(
+            x=df.index,
+            open=df['Open'],
+            high=df['High'],
+            low=df['Low'],
+            close=df['Close'],
+            name='Price',
+            increasing_line_color='#26a69a',
+            decreasing_line_color='#ef5350'
+        ),
+        row=1, col=1
+    )
     
-    for ema, color in [('EMA_9', '#FF9800'), ('EMA_20', '#9C27B0'), ('EMA_50', '#2196F3')]:
-        fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df[ema], name=ema, line=dict(color=color, width=1)), row=1, col=1)
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['EMA_9'], name='EMA 9', line=dict(color='#FF9800', width=1.5)),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['EMA_20'], name='EMA 20', line=dict(color='#9C27B0', width=1.5)),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['EMA_50'], name='EMA 50', line=dict(color='#2196F3', width=1.5)),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['VWAP'], name='VWAP', line=dict(color='#00BCD4', width=2, dash='dot')),
+        row=1, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['BB_Upper'], name='BB Upper', line=dict(color='rgba(128,128,128,0.5)', width=1, dash='dash')),
+        row=1, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['BB_Lower'], name='BB Lower', line=dict(color='rgba(128,128,128,0.5)', width=1, dash='dash'),
+                   fill='tonexty', fillcolor='rgba(128,128,128,0.08)'),
+        row=1, col=1
+    )
+    
+    if len(df) > 0:
+        latest = df.iloc[-1]
+        last_time = df.index[-1]
         
-    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['VWAP'], name='VWAP', line=dict(color='#00BCD4', width=1.5, dash='dot')), row=1, col=1)
-
-    # Trades
+        fig.add_annotation(
+            x=last_time, y=latest['VWAP'],
+            text=f"VWAP: ${latest['VWAP']:.2f}",
+            showarrow=False, xanchor='left', font=dict(color='#00BCD4', size=10),
+            row=1, col=1
+        )
+        fig.add_annotation(
+            x=last_time, y=latest['EMA_9'],
+            text=f"EMA9: ${latest['EMA_9']:.2f}",
+            showarrow=False, xanchor='left', font=dict(color='#FF9800', size=10),
+            row=1, col=1
+        )
+        fig.add_annotation(
+            x=last_time, y=latest['EMA_20'],
+            text=f"EMA20: ${latest['EMA_20']:.2f}",
+            showarrow=False, xanchor='left', font=dict(color='#9C27B0', size=10),
+            row=1, col=1
+        )
+    
     for trade in trades:
-        # Only plot if within view
-        if trade['entry_time'] < plot_df.index[0]: continue
+        entry_time = trade['entry_time']
+        entry_price = trade['entry_price']
         
-        fig.add_trace(go.Scatter(
-            x=[trade['entry_time']], y=[trade['entry_price']*0.998], mode='markers',
-            marker=dict(symbol='triangle-up', size=12, color='#00ff88'),
-            name='Buy', showlegend=False
-        ), row=1, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=[entry_time],
+                y=[entry_price * 0.997],
+                mode='markers+text',
+                marker=dict(symbol='triangle-up', size=18, color='#00ff88', line=dict(color='#004d26', width=2)),
+                text=['BUY'],
+                textposition='bottom center',
+                textfont=dict(color='#00ff88', size=10, family='Arial Black'),
+                name='Buy',
+                showlegend=False
+            ),
+            row=1, col=1
+        )
         
-        if not trade['open'] and trade['exit_time'] >= plot_df.index[0]:
-            fig.add_trace(go.Scatter(
-                x=[trade['exit_time']], y=[trade['exit_price']*1.002], mode='markers',
-                marker=dict(symbol='triangle-down', size=12, color='#ff4757'),
-                name='Sell', showlegend=False
-            ), row=1, col=1)
-
-    # Probability
-    prob_vals = plot_df['Signal_Probability'] * 100
-    fig.add_trace(go.Scatter(
-        x=plot_df.index, y=prob_vals, name='Prob %',
-        line=dict(color='#00d4ff', width=1), fill='tozeroy', fillcolor='rgba(0,212,255,0.1)'
-    ), row=2, col=1)
-    fig.add_hline(y=76, line_dash="dash", line_color="#00ff88", row=2, col=1)
+        if trade.get('exit_time'):
+            exit_time = trade['exit_time']
+            exit_price = trade['exit_price']
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=[exit_time],
+                    y=[exit_price * 1.003],
+                    mode='markers+text',
+                    marker=dict(symbol='triangle-down', size=18, color='#ff4757', line=dict(color='#8b0000', width=2)),
+                    text=['SELL'],
+                    textposition='top center',
+                    textfont=dict(color='#ff4757', size=10, family='Arial Black'),
+                    name='Sell',
+                    showlegend=False
+                ),
+                row=1, col=1
+            )
+            
+            color = 'rgba(0,255,136,0.15)' if trade['pnl_pct'] > 0 else 'rgba(255,71,87,0.15)'
+            border_color = 'rgba(0,255,136,0.5)' if trade['pnl_pct'] > 0 else 'rgba(255,71,87,0.5)'
+            fig.add_shape(
+                type="rect",
+                x0=entry_time, x1=exit_time,
+                y0=min(entry_price, exit_price) * 0.995,
+                y1=max(entry_price, exit_price) * 1.005,
+                fillcolor=color,
+                line=dict(color=border_color, width=1),
+                row=1, col=1
+            )
     
-    # Volume
-    colors = ['#26a69a' if c >= o else '#ef5350' for c, o in zip(plot_df['Close'], plot_df['Open'])]
-    fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['Volume'], marker_color=colors, name='Vol'), row=3, col=1)
-    
-    # RSI & Stoch
-    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['RSI'], name='RSI', line=dict(color='#2196F3')), row=4, col=1)
-    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['Stoch_K'], name='Stoch', line=dict(color='#FF9800', width=1)), row=4, col=1)
-    fig.add_hline(y=30, line_dash="dot", line_color="white", row=4, col=1)
-    fig.add_hline(y=70, line_dash="dot", line_color="white", row=4, col=1)
-    
-    # MACD
-    colors_macd = ['#26a69a' if v >= 0 else '#ef5350' for v in plot_df['MACD_Hist']]
-    fig.add_trace(go.Bar(x=plot_df.index, y=plot_df['MACD_Hist'], marker_color=colors_macd, name='Hist'), row=5, col=1)
-    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MACD'], line=dict(color='#2196F3', width=1), name='MACD'), row=5, col=1)
-    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['MACD_Signal'], line=dict(color='#FF9800', width=1), name='Sig'), row=5, col=1)
-
-    fig.update_layout(
-        height=900, template='plotly_dark',
-        margin=dict(l=10, r=10, t=30, b=10),
-        legend=dict(orientation="h", y=1, x=0),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(10,10,10,0.5)'
+    prob_colors = ['#00ff88' if p >= 0.76 else '#ffc107' if p >= 0.5 else '#ff4757' for p in df['Signal_Probability']]
+    fig.add_trace(
+        go.Scatter(
+            x=df.index, 
+            y=df['Signal_Probability'] * 100,
+            name='Buy Probability',
+            line=dict(color='#00d4ff', width=2),
+            fill='tozeroy',
+            fillcolor='rgba(0, 212, 255, 0.2)'
+        ),
+        row=2, col=1
     )
+    fig.add_hline(y=76, line_dash="dash", line_color="#00ff88", line_width=1, row=2, col=1)
+    fig.add_annotation(x=df.index[-1], y=76, text="Signal Threshold (76%)", showarrow=False, 
+                      xanchor='left', font=dict(color='#00ff88', size=9), row=2, col=1)
+    
+    colors = ['#26a69a' if df['Close'].iloc[i] >= df['Open'].iloc[i] else '#ef5350' for i in range(len(df))]
+    fig.add_trace(
+        go.Bar(x=df.index, y=df['Volume'], name='Volume', marker_color=colors, opacity=0.7),
+        row=3, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['Volume_MA'], name='Vol MA', line=dict(color='white', width=1)),
+        row=3, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['RSI'], name='RSI', line=dict(color='#2196F3', width=2)),
+        row=4, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['Stoch_K'], name='Stoch K', line=dict(color='#FF9800', width=1.5)),
+        row=4, col=1
+    )
+    fig.add_hline(y=70, line_dash="dash", line_color="#ff4757", line_width=1, row=4, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="#00ff88", line_width=1, row=4, col=1)
+    
+    colors_macd = ['#26a69a' if val >= 0 else '#ef5350' for val in df['MACD_Hist']]
+    fig.add_trace(
+        go.Bar(x=df.index, y=df['MACD_Hist'], name='MACD Hist', marker_color=colors_macd),
+        row=5, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['MACD'], name='MACD', line=dict(color='#2196F3', width=1.5)),
+        row=5, col=1
+    )
+    fig.add_trace(
+        go.Scatter(x=df.index, y=df['MACD_Signal'], name='Signal', line=dict(color='#FF9800', width=1.5)),
+        row=5, col=1
+    )
+    
+    fig.update_layout(
+        height=1000,
+        showlegend=True,
+        legend=dict(
+            orientation="h", 
+            yanchor="bottom", 
+            y=1.02, 
+            xanchor="right", 
+            x=1,
+            bgcolor='rgba(0,0,0,0.5)',
+            font=dict(color='white', size=10)
+        ),
+        xaxis_rangeslider_visible=False,
+        template='plotly_dark',
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(10,10,10,0.8)',
+        font=dict(color='white'),
+        margin=dict(l=60, r=60, t=80, b=40)
+    )
+    
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(50,50,50,0.5)')
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(50,50,50,0.5)')
+    
+    fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+    fig.update_yaxes(title_text="Prob %", row=2, col=1, range=[0, 100])
+    fig.update_yaxes(title_text="Volume", row=3, col=1)
+    fig.update_yaxes(title_text="RSI/Stoch", row=4, col=1, range=[0, 100])
+    fig.update_yaxes(title_text="MACD", row=5, col=1)
+    
     return fig
 
-# ==========================================
-# 6. UI COMPONENT FUNCTIONS
-# ==========================================
 
-def safe_image_load():
-    """Safely loads logo or returns None to prevent crashes"""
-    if os.path.exists("logo2.jpg"):
-        return "logo2.jpg"
-    return None 
-
-def render_sidebar(strategy):
+def render_sidebar(strategy, df=None):
+    """Render the sidebar with market status, quick tickers, settings, and legend"""
     with st.sidebar:
-        logo = safe_image_load()
-        if logo:
-            st.image(logo, width=120)
+        st.image("logo2.jpg", width=120)
+        st.markdown("---")
+        
+        market_status, market_text = get_market_status()
+        st.markdown('<div class="sidebar-title">📊 Market Status</div>', unsafe_allow_html=True)
+        if market_status == "open":
+            st.markdown(f'<div class="market-open">🟢 {market_text}</div>', unsafe_allow_html=True)
+        elif market_status == "prepost":
+            st.markdown(f'<div class="market-prepost">🟡 {market_text}</div>', unsafe_allow_html=True)
         else:
-            st.markdown("### 📈 Spiketrade")
-            
-        st.markdown("---")
+            st.markdown(f'<div class="market-closed">🔴 {market_text}</div>', unsafe_allow_html=True)
         
-        status, text = get_market_status()
-        color = "#00ff88" if status == "open" else "#ffc107" if status == "prepost" else "#ff4757"
-        st.markdown(f"Market Status: <span style='color:{color}; font-weight:bold'>{text}</span>", unsafe_allow_html=True)
+        et_tz = pytz.timezone('US/Eastern')
+        current_et = datetime.now(et_tz).strftime('%H:%M ET')
+        st.caption(f"Current Time: {current_et}")
         
         st.markdown("---")
-        st.caption("Settings")
-        st.markdown(f"**Threshold**: {strategy.settings['comboSignalThreshold']*100:.0f}%")
-        st.markdown(f"**Stop Loss**: {strategy.settings['stopLossPct']*100:.0f}%")
+        st.markdown('<div class="sidebar-title">⚡ Quick Tickers</div>', unsafe_allow_html=True)
+        
+        penny_stocks = ["MULN", "SNDL", "BBIG", "CLOV", "SOFI", "PLTR"]
+        cols = st.columns(3)
+        for i, ticker in enumerate(penny_stocks):
+            with cols[i % 3]:
+                if st.button(ticker, key=f"quick_{ticker}", use_container_width=True):
+                    st.session_state['selected_ticker'] = ticker
+        
+        st.markdown("---")
+        st.markdown('<div class="sidebar-title">⚙️ Strategy Settings</div>', unsafe_allow_html=True)
+        
+        st.markdown(f"""
+        <div class="sidebar-card">
+            <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                <span style="color: #888;">Signal Threshold:</span>
+                <span style="color: #00d4ff; font-weight: bold;">{strategy.settings['comboSignalThreshold']*100:.0f}%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                <span style="color: #888;">Stop Loss:</span>
+                <span style="color: #ff4757; font-weight: bold;">{strategy.settings['stopLossPct']*100:.0f}%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                <span style="color: #888;">Profit Target:</span>
+                <span style="color: #00ff88; font-weight: bold;">{strategy.settings['targetGainPercent']:.0f}%</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                <span style="color: #888;">RVOL Threshold:</span>
+                <span style="color: #ffc107; font-weight: bold;">{strategy.settings['rvolThreshold']}x</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                <span style="color: #888;">Stoch Oversold:</span>
+                <span style="color: #ffc107; font-weight: bold;">&lt;{strategy.settings['stochasticOversoldThreshold']}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown('<div class="sidebar-title">📖 Signal Legend</div>', unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="sidebar-card">
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #00ff88, #28a745);"></div>
+                <span><b>BUY</b> - All conditions met</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #ff4757, #dc3545);"></div>
+                <span><b>SELL</b> - Exit triggered</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(135deg, #ffc107, #ff9800);"></div>
+                <span><b>HOLD</b> - Monitoring</span>
+            </div>
+            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #333;">
+                <div class="legend-item">
+                    <span style="color: #00d4ff;">▲</span>
+                    <span>Entry Point</span>
+                </div>
+                <div class="legend-item">
+                    <span style="color: #ff4757;">▼</span>
+                    <span>Exit Point</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 
 def render_indicator_dashboard(strategy, df):
-    if df is None or len(df) < 51: return
+    """Render the comprehensive indicator dashboard"""
+    if df is None or len(df) < 51:
+        return
+    
+    st.markdown("---")
     
     spike_status = strategy.get_spike_status(df)
     filter_status = strategy.get_filter_status(df)
     
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("**Detectors**")
-        html = ""
-        for k, v in spike_status.items():
-            cls = "badge-on" if v else "badge-off"
-            html += f"<span class='indicator-badge {cls}'>{k}</span>"
-        st.markdown(html, unsafe_allow_html=True)
-        
-    with c2:
-        st.markdown("**Filters**")
-        html = ""
-        for k, v in filter_status.items():
-            cls = "filter-pass" if v else "filter-fail"
-            html += f"<span class='{cls}'>{k}</span>"
-        st.markdown(html, unsafe_allow_html=True)
-
-def render_prob_breakdown(strategy, df):
-    if df is None: return
-    prob, scores = strategy.calculate_buy_probability(df, len(df)-1)
-    if not scores: return
+    col1, col2 = st.columns(2)
     
-    with st.expander("📊 Probability Breakdown"):
-        for k, v in scores.items():
-            st.markdown(f"""
-            <div class='prob-item'>
-                <span>{k}</span> <span style='color:#00d4ff'>{v}</span>
-            </div>
-            """, unsafe_allow_html=True)
+    with col1:
+        st.markdown('<div class="card"><div class="card-title">🔥 Spike Detectors (7)</div>', unsafe_allow_html=True)
+        
+        spike_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px;">'
+        for name, active in spike_status.items():
+            badge_class = "badge-on" if active else "badge-off"
+            icon = "✓" if active else "○"
+            spike_html += f'<span class="indicator-badge {badge_class}">{icon} {name}</span>'
+        spike_html += '</div>'
+        
+        active_count = sum(spike_status.values())
+        spike_html += f'<div style="margin-top: 15px; color: #888;">Active Spikes: <span style="color: #00d4ff; font-weight: bold;">{active_count}/7</span></div>'
+        spike_html += '</div>'
+        st.markdown(spike_html, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown('<div class="card"><div class="card-title">🎯 Signal Filters</div>', unsafe_allow_html=True)
+        
+        filters = [
+            ('MACD Gate', filter_status.get('macd_gate', False)),
+            ('Stochastic', filter_status.get('stochastic', False)),
+            ('RVOL', filter_status.get('rvol', False)),
+            ('EMA Trend', filter_status.get('ema_trend', False)),
+            ('Has Spike', filter_status.get('has_spike', False)),
+            ('Momentum', filter_status.get('bullish_momentum', False))
+        ]
+        
+        filter_html = '<div style="display: flex; flex-wrap: wrap; gap: 8px;">'
+        for name, passed in filters:
+            if passed:
+                filter_html += f'<span class="filter-pass">✓ {name}</span>'
+            else:
+                filter_html += f'<span class="filter-fail">✗ {name}</span>'
+        filter_html += '</div>'
+        
+        pass_count = sum(1 for _, passed in filters if passed)
+        filter_html += f'<div style="margin-top: 15px; color: #888;">Filters Passing: <span style="color: #00d4ff; font-weight: bold;">{pass_count}/{len(filters)}</span></div>'
+        filter_html += '</div>'
+        st.markdown(filter_html, unsafe_allow_html=True)
 
-# ==========================================
-# 7. MAIN APP LOOP
-# ==========================================
+
+def render_probability_breakdown(strategy, df):
+    """Render the weighted probability breakdown"""
+    if df is None or len(df) < 51:
+        return
+    
+    probability, scores = strategy.calculate_buy_probability(df, len(df)-1)
+    
+    if scores:
+        with st.expander("📊 Probability Breakdown", expanded=False):
+            st.markdown('<div class="card">', unsafe_allow_html=True)
+            
+            for indicator, value in scores.items():
+                weight = strategy.weights.get(indicator.lower().replace(' ', '_'), 0.5)
+                bar_width = min(weight * 100, 100)
+                
+                st.markdown(f"""
+                <div class="prob-item">
+                    <span style="color: #ccc;">{indicator}</span>
+                    <span style="color: #00d4ff; font-weight: bold;">{value}</span>
+                </div>
+                <div class="prob-bar" style="width: {bar_width}%;"></div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_signal_analysis(strategy, df):
+    """Render detailed signal analysis expander"""
+    if df is None or len(df) < 51:
+        return
+    
+    row = df.iloc[-1]
+    filter_status = strategy.get_filter_status(df)
+    spike_status = strategy.get_spike_status(df)
+    probability, scores = strategy.calculate_buy_probability(df, len(df)-1)
+    
+    with st.expander("🔍 Signal Analysis - Why This Signal?", expanded=False):
+        current_signal, _, _ = strategy.get_current_signal(df)
+        
+        st.markdown(f"### Current Signal: **{current_signal}**")
+        
+        st.markdown("#### Filter Analysis")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Required Filters:**")
+            
+            has_spike = filter_status.get('has_spike', False)
+            st.markdown(f"- Spike Detection: {'✅ PASS' if has_spike else '❌ FAIL'} - {'At least 1 spike active' if has_spike else 'No spikes detected'}")
+            
+            macd_pass = filter_status.get('macd_gate', False)
+            macd_hist = row['MACD_Hist']
+            macd_roc = row['MACD_Hist_ROC']
+            threshold = strategy.settings['macdHistogramRocThreshold'] / 100.0
+            st.markdown(f"- MACD Gate: {'✅ PASS' if macd_pass else '❌ FAIL'}")
+            st.caption(f"  Hist: {macd_hist:.4f} (need ≤0), ROC: {macd_roc:.4f} (need ≥{threshold:.4f})")
+            
+            stoch_pass = filter_status.get('stochastic', False)
+            stoch_val = row['Stoch_K']
+            st.markdown(f"- Stochastic: {'✅ PASS' if stoch_pass else '❌ FAIL'}")
+            st.caption(f"  K: {stoch_val:.1f} (need <{strategy.settings['stochasticOversoldThreshold']})")
+            
+        with col2:
+            rvol_pass = filter_status.get('rvol', False)
+            rvol_val = row['RVOL']
+            st.markdown(f"- RVOL: {'✅ PASS' if rvol_pass else '❌ FAIL'}")
+            st.caption(f"  Current: {rvol_val:.2f}x (need >{strategy.settings['rvolThreshold']}x)")
+            
+            ema_pass = filter_status.get('ema_trend', False)
+            st.markdown(f"- EMA Trend: {'✅ PASS' if ema_pass else '❌ FAIL'}")
+            st.caption(f"  Price: ${row['Close']:.2f}, EMA9: ${row['EMA_9']:.2f}, EMA20: ${row['EMA_20']:.2f}")
+            
+            momentum_pass = filter_status.get('bullish_momentum', False)
+            st.markdown(f"- Bullish Momentum: {'✅ PASS' if momentum_pass else '❌ FAIL'}")
+            st.caption(f"  Price ROC: {row['Price_ROC']:.2f}%, Vol ROC: {row['Volume_ROC']:.2f}%")
+        
+        st.markdown("---")
+        st.markdown("#### Probability Score")
+        st.progress(probability)
+        st.markdown(f"**{probability*100:.1f}%** (threshold: {strategy.settings['comboSignalThreshold']*100:.0f}%)")
+        
+        if probability < strategy.settings['comboSignalThreshold']:
+            st.warning(f"Probability is below threshold by {(strategy.settings['comboSignalThreshold'] - probability)*100:.1f}%")
+        else:
+            st.success("Probability meets threshold requirement")
+
 
 def main():
     col_logo, col_title = st.columns([1, 8])
     with col_logo:
-        logo = safe_image_load()
-        if logo:
-            st.image(logo, width=80)
+        st.image("logo2.jpg", width=80)
     with col_title:
-        st.markdown('<h1 class="main-header">📈 Spiketrade Optimized</h1>', unsafe_allow_html=True)
-
+        st.markdown('<h1 class="main-header">📈 Spiketrade</h1>', unsafe_allow_html=True)
+        st.markdown('<p class="sub-header">Real-time buy/sell signals with 1-minute data (includes pre/post market)</p>', unsafe_allow_html=True)
+    
     strategy = PennyBreakoutStrategy()
+    
     render_sidebar(strategy)
     
     if 'selected_ticker' not in st.session_state:
-        st.session_state['selected_ticker'] = "SPY"
-        
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        ticker = st.text_input("Ticker", value=st.session_state['selected_ticker']).upper()
-        st.session_state['selected_ticker'] = ticker
-    with c2:
-        auto_refresh = st.checkbox("Auto-Refresh (15s)")
-        
+        st.session_state['selected_ticker'] = ""
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        default_value = st.session_state.get('selected_ticker', '')
+        ticker = st.text_input("Enter Stock Ticker", value=default_value, placeholder="e.g., AAPL, TSLA, GME").upper()
+        if ticker:
+            st.session_state['selected_ticker'] = ticker
+    
+    with col2:
+        auto_refresh = st.checkbox("Auto-Refresh (15s)", value=False)
+    
     if ticker:
-        with st.spinner("Analyzing..."):
-            df, err = fetch_stock_data(ticker)
-            
-        if err:
-            st.error(err)
-        elif df is not None:
-            # Process Signals
+        with st.spinner(f"Fetching 1-minute data for {ticker}..."):
+            df, error = fetch_stock_data(ticker)
+        
+        if error:
+            st.error(f"Error: {error}")
+        elif df is not None and not df.empty:
             df = strategy.calculate_signals(df)
             trades = strategy.get_paired_trades(df)
-            signal, reason, prob = strategy.get_current_signal(df)
             
-            # Metrics
-            latest = df.iloc[-1]
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Price", f"${latest['Close']:.2f}")
-            m2.metric("Probability", f"{prob*100:.1f}%")
+            current_signal, signal_reason, probability = strategy.get_current_signal(df)
             
-            sig_html = f"<div class='{signal.lower()}-signal'>{signal}</div>"
-            if signal == "BUY": sig_html = f"<div class='buy-signal'>BUY</div>"
-            elif signal == "SELL": sig_html = f"<div class='sell-signal'>SELL</div>"
-            else: sig_html = f"<div class='hold-signal'>HOLD</div>"
+            st.markdown("---")
             
-            m3.markdown(sig_html, unsafe_allow_html=True)
+            col1, col2, col3, col4 = st.columns(4)
             
-            # Visuals
+            with col1:
+                current_price = df['Close'].iloc[-1]
+                open_price = df['Open'].iloc[0]
+                day_change = ((current_price - open_price) / open_price * 100)
+                st.metric("Current Price", f"${current_price:.2f}", f"{day_change:+.2f}% today")
+            
+            with col2:
+                prob_display = probability * 100
+                if prob_display >= 70:
+                    prob_class = "probability-high"
+                elif prob_display >= 40:
+                    prob_class = "probability-medium"
+                else:
+                    prob_class = "probability-low"
+                st.markdown("**Buy Probability** ℹ️")
+                st.markdown(f'<p class="{prob_class}">{prob_display:.1f}%</p>', unsafe_allow_html=True)
+                with st.expander("What does this mean?", expanded=False):
+                    st.markdown("""
+                    The **Buy Probability** represents the likelihood of a profitable trade based on:
+                    - Historical backtesting results from similar market conditions
+                    - Calibrated weights of technical indicators (spikes, momentum, volume)
+                    - Confirmed signal filters (MACD, Stochastic, RVOL, EMA trend)
+                    
+                    **Higher % = More confidence** that current conditions match profitable setups. This is your estimated edge for entering a position at this moment.
+                    """)
+            
+            with col3:
+                if current_signal == "BUY":
+                    st.markdown(f'<div class="buy-signal">🟢 {current_signal}</div>', unsafe_allow_html=True)
+                elif current_signal == "SELL":
+                    st.markdown(f'<div class="sell-signal">🔴 {current_signal}</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="hold-signal">🟡 {current_signal}</div>', unsafe_allow_html=True)
+            
+            with col4:
+                rsi_val = df['RSI'].iloc[-1]
+                rsi_color = "#00ff88" if rsi_val < 30 else "#ff4757" if rsi_val > 70 else "#ffc107"
+                st.markdown(f"""
+                <div class="summary-stat">
+                    <div class="stat-value" style="color: {rsi_color};">{rsi_val:.1f}</div>
+                    <div class="stat-label">RSI</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
             render_indicator_dashboard(strategy, df)
-            render_prob_breakdown(strategy, df)
+            
+            render_probability_breakdown(strategy, df)
+            
+            render_signal_analysis(strategy, df)
             
             st.plotly_chart(create_chart(df, ticker, trades), use_container_width=True)
+            
+            st.markdown("---")
+            st.subheader("📈 Current Indicators")
+            
+            latest = df.iloc[-1]
+            
+            col1, col2, col3, col4, col5 = st.columns(5)
+            
+            with col1:
+                st.metric("EMA 9", f"${latest['EMA_9']:.2f}")
+                st.metric("EMA 20", f"${latest['EMA_20']:.2f}")
+            
+            with col2:
+                st.metric("MACD", f"{latest['MACD']:.4f}")
+                st.metric("MACD Signal", f"{latest['MACD_Signal']:.4f}")
+            
+            with col3:
+                st.metric("Stoch K", f"{latest['Stoch_K']:.1f}")
+                st.metric("Stoch D", f"{latest['Stoch_D']:.1f}")
+            
+            with col4:
+                st.metric("VWAP", f"${latest['VWAP']:.2f}")
+                st.metric("RVOL", f"{latest['RVOL']:.2f}x")
+            
+            with col5:
+                st.metric("MFI", f"{latest['MFI']:.1f}")
+                st.metric("Price ROC", f"{latest['Price_ROC']:.2f}%")
+            
+            st.markdown(f"*Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
             
             if auto_refresh:
                 import time
                 time.sleep(15)
                 st.rerun()
+    else:
+        st.info("👆 Enter a stock ticker above to start analyzing")
+        
+        st.markdown("---")
+        st.markdown("### How the Penny Breakout Strategy Works")
+        st.markdown("""
+        <div class="card">
+        This strategy identifies breakout opportunities using calibrated technical indicators:
+        
+        - **Spike Detection**: Z-score analysis on Price, RSI, OBV, MFI, Volume, %B, and VWAP ROC
+        - **Probability Calculation**: Weighted scoring using historically calibrated win rates
+        - **Signal Filters**: MACD histogram ROC, Stochastic oversold, RVOL threshold, EMA trend
+        - **Risk Management**: 2% stop loss, 2% profit target
+        - **One Trade Max**: Only one position open at a time
+        
+        **Chart shows 1-day of 1-minute data including pre/post market hours.**
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("### Popular Tickers")
+        popular = ["AAPL", "TSLA", "GME", "AMC", "NVDA", "AMD"]
+        cols = st.columns(6)
+        for i, tick in enumerate(popular):
+            with cols[i]:
+                if st.button(tick, key=f"pop_{tick}", use_container_width=True):
+                    st.session_state['selected_ticker'] = tick
+                    st.rerun()
+
 
 if __name__ == "__main__":
     main()
